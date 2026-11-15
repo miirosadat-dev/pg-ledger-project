@@ -5,11 +5,19 @@
   "description": "Double-entry ledger engine on PostgreSQL",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "db:new": "dbmate --env-file .env --env DATABASE_URL_ADMIN --migrations-dir db/migrations new",
     "db:up": "dbmate --env-file .env --env DATABASE_URL_ADMIN --migrations-dir db/migrations --no-dump-schema up",
     "db:down": "dbmate --env-file .env --env DATABASE_URL_ADMIN --migrations-dir db/migrations --no-dump-schema rollback",
     "db:status": "dbmate --env-file .env --env DATABASE_URL_ADMIN --migrations-dir db/migrations status"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "dbmate": "^2.38.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }
