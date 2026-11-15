@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    // Modern Node: ES modules, resolution rules that match Node's real behavior
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    // strict = the whole safety net on. Non-negotiable for money code.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": ["src", "tests"]
+}
