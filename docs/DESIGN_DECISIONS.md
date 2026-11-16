@@ -80,3 +80,26 @@ Each decision: Context / Options / Decision / Tradeoffs.
 
 - **Decision:** SHA-256 over the `jsonb` text of a logical request object built inside each public function.
 - **Tradeoffs:** clients cannot send a wrong or forged hash, and key reuse is judged on the logical request. Relies on `jsonb` text output being canonical, which holds in practice. A failed request rolls back its key, so only successful requests are replayable.
+
+## 15. Concurrency
+
+- **Context:** Concurrent requests must never lose money, overdraw, duplicate, or deadlock.
+- **Demonstrated anomalies** (`db/demos/phase5_setup.sql`):
+  1. _Lost update_ under READ COMMITTED with an app-side read-modify-write: 1000 + 100 + 100 ended at 1100. Fixed by atomic `balance = balance + delta` (our balance trigger) or by REPEATABLE READ, which raises `40001`.
+  2. _Write skew_: two sessions each passed a cross-row check ("joint wallets total >= 0") and wrote different rows; the total reached -100 under REPEATABLE READ. SERIALIZABLE aborted one session with `40001`.
+  3. _Deadlock_: opposite lock order on two rows gives `40P01` within ~1 s. Locking rows in sorted order made the second session wait instead.
+  4. _Idempotency race_: two same-key requests serialise on `pg_advisory_xact_lock`; the second returns `replayed: true`.
+- **Decision:** posting functions run at the default READ COMMITTED and take explicit locks: advisory lock on the idempotency key, then `FOR UPDATE` on `account_balances` in sorted account-id order. Our invariants are per-row (`balance >= 0`) or per-transaction (debits = credits), both safe under row locks.
+- **Where each level is used:**
+  - Posting (`transfer`, `deposit`, `withdraw`, `reverse_transaction`): READ COMMITTED + locks.
+  - Consistent multi-query reports (reconciliation, trial balance): `REPEATABLE READ READ ONLY`, so all queries see one snapshot.
+  - SERIALIZABLE: reserved for any future cross-row business rule (for example a per-customer total limit) that cannot be expressed as a constraint.
+- **Tradeoffs:** explicit locks mean predictable latency and few retries but require discipline (every writer must follow the lock order, which one function guarantees). SERIALIZABLE everywhere would be simpler to reason about, but costs predicate-lock overhead and frequent `40001` retries on hot accounts. Call the posting functions as the first statement of a transaction; at higher isolation levels a snapshot taken earlier cannot see a just-committed duplicate key.
+
+### Retry rules
+
+1. Retry **only** `40001` (serialization failure) and `40P01` (deadlock). Also retry `23505` on `idempotency_keys_pkey` (the replay will succeed on the second attempt). Never retry `LD*` business errors, constraint violations, or `42501`: they are deterministic and will fail again.
+2. Retry the **whole transaction** from `BEGIN`, never a single statement.
+3. Only retry money-moving work that carries an idempotency key. A replay returns the original result, so a retry can never double-post.
+4. Capped exponential backoff with full jitter: `delay = random(0, min(cap, base * 2^attempt))`, base 20 ms, cap 500 ms, at most 5 attempts. Jitter prevents contending clients retrying in lockstep.
+5. After the final attempt, surface the error as HTTP 409/503 with a `Retry-After` hint. The helper is implemented in `src/db/pool.ts` in Phase 8.
