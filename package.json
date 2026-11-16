@@ -13,7 +13,7 @@
     "db:up": "dbmate --env-file .env --env DATABASE_URL_ADMIN --migrations-dir db/migrations --no-dump-schema up",
     "db:down": "dbmate --env-file .env --env DATABASE_URL_ADMIN --migrations-dir db/migrations --no-dump-schema rollback",
     "db:status": "dbmate --env-file .env --env DATABASE_URL_ADMIN --migrations-dir db/migrations status",
-    "test:db": "psql -U postgres -h localhost -d ledger_dev -v ON_ERROR_STOP=1 -f db/tests/phase3_invariants.sql"
+    "test:db": "psql -U postgres -h localhost -d ledger_dev -v ON_ERROR_STOP=1 -f db/tests/phase3_invariants.sql && psql -U postgres -h localhost -d ledger_dev -v ON_ERROR_STOP=1 -f db/tests/phase4_posting.sql"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
