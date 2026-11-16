@@ -63,3 +63,20 @@ Each decision: Context / Options / Decision / Tradeoffs.
 
 - **Decision:** `type`/`status` columns use `text` with `CHECK (... IN (...))`.
 - **Tradeoffs:** changing the allowed values is a simple constraint swap, while enum values can't be removed once added. Cost: no type-level documentation of the values.
+
+## 12. Advisory lock for the idempotency key, row locks for accounts
+
+- **Context:** Concurrent postings must not duplicate a request or deadlock.
+- **Options:** advisory locks everywhere, row locks everywhere, or each where it fits.
+- **Decision:** `pg_advisory_xact_lock(hashtextextended(key, 0))` first (the key has no row yet), then `SELECT ... FOR UPDATE` on `account_balances` in sorted account-id order.
+- **Tradeoffs:** one fixed lock order across all callers rules out lock-order deadlocks. The `xact` advisory variant releases at transaction end and is safe behind transaction-level poolers (Neon); session-level `pg_advisory_lock` would leak across pooled connections. Hash collisions only cause extra waiting.
+
+## 13. The API can only call functions
+
+- **Decision:** posting functions are `SECURITY DEFINER` with a pinned `search_path`; `ledger_app` has no INSERT on `entries`, `transactions` or `idempotency_keys`, and no UPDATE on balances. `post_transaction` is internal.
+- **Tradeoffs:** the security boundary is small and auditable, but all writes must go through functions, so tests and ad-hoc fixes need them too. A bug inside a definer function runs with owner rights, so these functions stay short and are reviewed first.
+
+## 14. Idempotency hash is computed in the database
+
+- **Decision:** SHA-256 over the `jsonb` text of a logical request object built inside each public function.
+- **Tradeoffs:** clients cannot send a wrong or forged hash, and key reuse is judged on the logical request. Relies on `jsonb` text output being canonical, which holds in practice. A failed request rolls back its key, so only successful requests are replayable.

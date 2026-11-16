@@ -290,49 +290,6 @@ SELECT pg_temp.assert_eq(
         ),
         1000
     );
--- The API role can post (proves the grants and the SECURITY DEFINER balance trigger work).
-SELECT pg_temp.expect_ok(
-        'ledger_app can post a balanced transaction',
-        $q$
-        SET LOCAL ROLE ledger_app;
-INSERT INTO ledger.transactions (id, type)
-VALUES (
-        '00000000-0000-0000-0000-0000000000b6',
-        'deposit'
-    );
-INSERT INTO ledger.entries (
-        transaction_id,
-        account_id,
-        currency,
-        direction,
-        amount
-    )
-VALUES (
-        '00000000-0000-0000-0000-0000000000b6',
-        '00000000-0000-0000-0000-0000000000a1',
-        'USD',
-        'D',
-        500
-    ),
-    (
-        '00000000-0000-0000-0000-0000000000b6',
-        '00000000-0000-0000-0000-0000000000a2',
-        'USD',
-        'C',
-        500
-    );
-RESET ROLE;
-$q$
-);
-SELECT pg_temp.assert_eq(
-        'wallet balance = 1500 after second deposit',
-        (
-            SELECT balance
-            FROM ledger.account_balances
-            WHERE account_id = '00000000-0000-0000-0000-0000000000a2'
-        ),
-        1500
-    );
 -- ---- invariant 4: no overdraft ----------------------------------------------------
 SELECT pg_temp.expect_fail(
         'overdraft on a non-overdraftable wallet is rejected',
