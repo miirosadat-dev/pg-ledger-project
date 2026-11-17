@@ -1,6 +1,6 @@
 -- Bulk-loads synthetic data into the throwaway ledger_bench database.
 -- Run by scripts/bench.mjs with:  -v n_accounts=1000 -v n_txns=500000
-\ timing on -- Bulk-load mode: skips ALL ordinary triggers and FK checks (superuser only). We use it
+-- Bulk-load mode: skips ALL ordinary triggers and FK checks (superuser only). We use it
 -- because firing the balance trigger and deferred balance check per row would take
 -- minutes. Safe here because every transaction below is balanced by construction, and
 -- balances are recomputed afterwards.
