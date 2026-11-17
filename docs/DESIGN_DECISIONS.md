@@ -119,3 +119,16 @@ Each decision: Context / Options / Decision / Tradeoffs.
 
 - **Decision:** a BEFORE INSERT trigger rejects `reverse_transaction` on `invoice_issue` / `invoice_payment` transactions (LD043). `void_invoice` posts its reversal with a metadata marker only database functions can write.
 - **Tradeoffs:** one more trigger, but the invoice row and its ledger entries cannot drift apart.
+
+## 19. Partitioning `entries` by month
+
+- **Context:** `entries` is the largest, append-only table; time-bounded queries and retention are the common access patterns.
+- **Options:** one big table; hash partitions; range partitions by `created_at`.
+- **Decision:** monthly range partitions on `created_at`, a default partition as a safety net, helper functions to create partitions (`create_entries_partition`, `ensure_entries_partitions`), ledger guards attached to every partition.
+- **Tradeoffs:** the primary key becomes `(id, created_at)`, so uniqueness of `id` alone is not database-enforced (it comes from one sequence); no foreign keys may point at `entries`; row triggers live on each partition, not the parent; a default partition holding rows blocks creating an overlapping partition, so partitions are created ahead of time on a schedule. In return: partition pruning for time-bounded queries and cheap archival by detaching old months.
+
+## 20. Statements, reconciliation and the trial balance
+
+- **Statement:** window function over the account's entries with an opening balance, so filters never distort running totals. Ordered by `(created_at, id)` because all lines of a transaction share `created_at`.
+- **Reconciliation:** `reconcile()` returns only discrepancies (currency balance, per-transaction balance, cached balance vs entries). It is the executable proof of invariant 7 and runs in tests and via the API.
+- **Trial balance:** a materialized view with a unique index, refreshed `CONCURRENTLY` through a SECURITY DEFINER function. Reports tolerate staleness; live numbers come from `account_balances`. Concurrent refresh keeps readers unblocked but costs more than a plain refresh and requires the unique index.
