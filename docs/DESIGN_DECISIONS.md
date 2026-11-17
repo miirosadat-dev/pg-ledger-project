@@ -103,3 +103,19 @@ Each decision: Context / Options / Decision / Tradeoffs.
 3. Only retry money-moving work that carries an idempotency key. A replay returns the original result, so a retry can never double-post.
 4. Capped exponential backoff with full jitter: `delay = random(0, min(cap, base * 2^attempt))`, base 20 ms, cap 500 ms, at most 5 attempts. Jitter prevents contending clients retrying in lockstep.
 5. After the final attempt, surface the error as HTTP 409/503 with a `Retry-After` hint. The helper is implemented in `src/db/pool.ts` in Phase 8.
+
+## 16. Invoice accounting and state machine
+
+- **Decision:** issue = D receivable (asset) / C revenue; payment = D customer wallet / C receivable; void = exact reversal of the issue. Statuses: issued, partially_paid, paid, void (paid and void terminal). Validity is a CHECK tying status to `amount_paid`; legal transitions and frozen columns are a BEFORE UPDATE trigger.
+- **Tradeoffs:** payments debit the wallet, so the no-overdraft rule protects customers for free. Void is allowed only before any payment; refunds of paid invoices would need credit notes and are out of scope. Invoice numbers come from a sequence and can have gaps after rollbacks.
+
+## 17. Probe the idempotency key before validating state
+
+- **Context:** A retry of a payment that already succeeded must replay, not fail with "invoice already paid".
+- **Decision:** each invoice function validates state only when the key is unknown, posts through `post_transaction` (which replays or rejects a mismatched payload), then locks the invoice row last and re-validates. Lock order is always advisory key, accounts, invoice.
+- **Tradeoffs:** state is checked twice (unlocked probe for correct error codes, locked re-check for correctness under races). Any error after posting rolls the ledger entries back with it.
+
+## 18. Guarding invoice transactions against generic reversal
+
+- **Decision:** a BEFORE INSERT trigger rejects `reverse_transaction` on `invoice_issue` / `invoice_payment` transactions (LD043). `void_invoice` posts its reversal with a metadata marker only database functions can write.
+- **Tradeoffs:** one more trigger, but the invoice row and its ledger entries cannot drift apart.

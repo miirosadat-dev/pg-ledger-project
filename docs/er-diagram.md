@@ -8,6 +8,10 @@ erDiagram
     TRANSACTIONS ||--|{ ENTRIES : "contains"
     TRANSACTIONS |o--o| TRANSACTIONS : "reversal_of"
     IDEMPOTENCY_KEYS |o..o| TRANSACTIONS : "same key text, no FK"
+        INVOICES ||--|{ INVOICE_LINES : "has"
+    INVOICES ||--o{ INVOICE_PAYMENTS : "paid by"
+    TRANSACTIONS ||--o| INVOICES : "issues"
+    TRANSACTIONS ||--o| INVOICE_PAYMENTS : "records"
 
     CURRENCIES {
         char3 code PK

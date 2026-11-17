@@ -22,3 +22,10 @@ parsing messages. PostgreSQL's own codes are listed where the API must also hand
 | 40001    | Serialization failure: retry (Phase 5)                                                       | retry |
 | 40P01    | Deadlock detected: retry (Phase 5)                                                           | retry |
 | 23505    | Unique violation on `transactions_idempotency_key_key` (key reused after its record expired) | 409   |
+| LD043    | Invoice transactions cannot be reversed directly (use void_invoice)                          | 422   |
+| LD050    | Payment exceeds the invoice's remaining balance                                              | 422   |
+| LD051    | Invoice accounts have the wrong types or do not exist                                        | 422   |
+| LD052    | Invoice not found                                                                            | 404   |
+| LD053    | Invoice state does not allow this action                                                     | 409   |
+| LD054    | Illegal invoice change (immutable field or status transition)                                | 500   |
+| LD056    | Invoice total differs from the sum of its lines                                              | 500   |
