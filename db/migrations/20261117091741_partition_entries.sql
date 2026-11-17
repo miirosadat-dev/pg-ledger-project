@@ -1,23 +1,19 @@
 -- migrate:up
 SET LOCAL ROLE ledger_owner;
--- ---------------------------------------------------------------------------
 -- 1. Move the old table aside. Renaming a table does NOT rename its indexes or
 --    sequences, so free up the names we want to reuse.
--- ---------------------------------------------------------------------------
 ALTER TABLE ledger.entries
     RENAME TO entries_old;
 ALTER INDEX ledger.entries_pkey
 RENAME TO entries_old_pkey;
 ALTER INDEX ledger.entries_transaction_id_idx
 RENAME TO entries_old_transaction_id_idx;
--- ---------------------------------------------------------------------------
 -- 2. The partitioned replacement, split by month of created_at (the posting time).
 --    The primary key MUST contain the partition column, so it is (id, created_at):
 --    PostgreSQL can only enforce uniqueness inside one partition. id stays unique in
 --    practice (single sequence) but the database no longer proves it globally.
 --    Identity columns do not combine cleanly with partitioning, so id is a plain
 --    sequence default. The app cannot insert directly anyway (Phase 4).
--- ---------------------------------------------------------------------------
 CREATE SEQUENCE ledger.entry_id_seq AS bigint;
 CREATE TABLE ledger.entries (
     id bigint NOT NULL DEFAULT nextval('ledger.entry_id_seq'),
@@ -37,9 +33,7 @@ ALTER SEQUENCE ledger.entry_id_seq OWNED BY ledger.entries.id;
 COMMENT ON TABLE ledger.entries IS 'Journal lines (debit or credit). Append-only. Partitioned by month of created_at.';
 COMMENT ON COLUMN ledger.entries.direction IS 'D = debit, C = credit.';
 COMMENT ON COLUMN ledger.entries.amount IS 'Minor units, strictly positive; sign comes from direction.';
--- ---------------------------------------------------------------------------
 -- 3. Helpers. Owned by ledger_owner, NOT granted to the app.
--- ---------------------------------------------------------------------------
 -- Attaches the four ledger guards to ONE partition. Row-level triggers are created
 -- per partition (not on the parent) so every partition is guarded by construction,
 -- and a TRUNCATE aimed directly at a partition cannot slip past a parent-only guard.
@@ -123,10 +117,8 @@ REVOKE ALL ON FUNCTION ledger.create_entries_partition(date, boolean)
 FROM PUBLIC;
 REVOKE ALL ON FUNCTION ledger.ensure_entries_partitions(integer)
 FROM PUBLIC;
--- ---------------------------------------------------------------------------
 -- 4. Create partitions for all existing data (no guards yet: the copy below must NOT
 --    fire the balance trigger, or balances would be counted twice), then copy.
--- ---------------------------------------------------------------------------
 CREATE TABLE ledger.entries_default PARTITION OF ledger.entries DEFAULT;
 DO $$
 DECLARE v_m date;
@@ -174,9 +166,7 @@ SELECT setval(
         false
     );
 DROP TABLE ledger.entries_old;
--- ---------------------------------------------------------------------------
 -- 5. Guards on every partition (default included) and a TRUNCATE guard on the parent.
--- ---------------------------------------------------------------------------
 DO $$
 DECLARE r record;
 BEGIN FOR r IN
