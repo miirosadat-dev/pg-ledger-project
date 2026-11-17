@@ -356,9 +356,12 @@ SELECT pg_temp.expect_fail(
             'LD003'
     );
 SELECT pg_temp.expect_fail(
-        'TRUNCATE on transactions+entries is rejected',
+        'TRUNCATE of the whole ledger is rejected',
         $q$ TRUNCATE ledger.entries,
-        ledger.transactions $q$,
+        ledger.transactions,
+        ledger.invoices,
+        ledger.invoice_lines,
+        ledger.invoice_payments $q$,
         'LD003'
     );
 -- ---- least privilege: ledger_app is stopped BEFORE any trigger runs (42501) -------
